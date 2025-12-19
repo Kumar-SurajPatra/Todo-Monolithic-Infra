@@ -1,0 +1,124 @@
+name: TodoInfra-Pipeline
+
+trigger: none
+
+pool: My-Laptop
+
+stages:
+  - stage: Precommit
+    jobs:
+      - job: TerraformInstall
+        displayName: Terraform Installation
+        steps:
+          - task: TerraformInstaller@1
+
+            inputs:
+              terraformVersion: 'latest'
+
+      - job: TerraformFmt
+        displayName: Terraform Fmt
+        steps:
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              command: 'custom'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+              outputTo: 'console'
+              customCommand: 'fmt'
+              environmentServiceNameAzureRM: 'ado-service-con'
+
+      - job: TerraformInitValidatePlan
+        displayName: Terraform Init, Validate & Plan
+        steps:
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+              commandOptions: '-reconfigure'
+              backendServiceArm: 'ado-service-con'
+              backendAzureRmStorageAccountName: 'backstgacc'
+              backendAzureRmContainerName: 'backend-cont'
+              backendAzureRmKey: 'back.tfstate'
+
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'        
+
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+              environmentServiceNameAzureRM: 'ado-service-con'
+
+  - stage: CodeScan
+    dependsOn: PreCommit
+    jobs:
+      - job: tfsec
+        displayName: Tfsec Scanning
+        steps:
+          - task: tfsec@1
+            inputs:
+              version: 'v1.26.0'
+              debug: true
+              dir: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/TEST1-*.xml'
+              testRunTitle: 'Tfsec report'
+
+      - job: tflint
+        displayName: Tflint Scanning
+        steps:
+          - task: CmdLine@2
+            inputs:
+              script: 'tflint --recursive /f junit'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/TEST-*.xml'
+              testRunTitle: 'Tflint report'
+
+  - stage: ManualValidation
+    jobs:
+      - job: ManualValidation
+        displayName: Manual Validation
+        pool: server
+        steps:
+          - task: ManualValidation@1
+            inputs:
+              notifyUsers: 'patrasurajkumar1@gmail.com'
+              approvers: 'patrasurajkumar1@gmail.com'
+              onTimeout: 'resume'
+
+  - stage: Deployment
+    jobs:
+      - job: TerraformApply
+        displayName: Terraform Apply
+        steps:
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+              commandOptions: '-reconfigure'
+              backendServiceArm: 'ado-service-con'
+              backendAzureRmStorageAccountName: 'backstgacc'
+              backendAzureRmContainerName: 'backend-cont'
+              backendAzureRmKey: 'back.tfstate'
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+              environmentServiceNameAzureRM: 'ado-service-con'
+
+
+
