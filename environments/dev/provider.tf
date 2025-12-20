@@ -6,10 +6,12 @@ terraform {
     }
   }
   backend "azurerm" {
-    #resource_group_name = "Backend-RG"
-    #storage_account_name = "backstgacc"   # Azure Storage Account name
-    #container_name       = "backend-cont" # Blob container name
-    #key                  = "back.tfstate" # Blob name for the state fill
+    resource_group_name = "Backend-RG"
+    storage_account_name = "backstgacc"   # Azure Storage Account name
+    container_name       = "backend-cont" # Blob container name
+    key                  = "back.tfstate" # Blob name for the state fill
+
+    use_azuread_auth     = true
   }
 }
 
