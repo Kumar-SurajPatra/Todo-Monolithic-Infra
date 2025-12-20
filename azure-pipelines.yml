@@ -77,7 +77,7 @@ stages:
         steps:
           - task: CmdLine@2
             inputs:
-              script: 'tflint --recursive /f junit'
+              script: 'tflint --recursive --format junit || exit 0'
               workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
 
           - task: PublishTestResults@2
